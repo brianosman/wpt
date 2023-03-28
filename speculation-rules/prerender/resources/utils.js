@@ -217,6 +217,20 @@ async function create_prerendered_page(t, opt = {}, init_opt = {}, rule_extras =
     params.set(p, opt[p]);
   const url = `${baseUrl}?${params.toString()}`;
 
+  if (opt.prefetch) {
+  await init_remote.execute_script((url, rule_extras) => {
+      const a = document.createElement('a');
+      a.href = url;
+      a.innerText = 'Activate (prefetch)';
+      document.body.appendChild(a);
+      const rules = document.createElement('script');
+      rules.type = "speculationrules";
+      rules.text = JSON.stringify({prefetch: [{source: 'list', urls: [url], ...rule_extras}]});
+      document.head.appendChild(rules);
+  }, [url, rule_extras]);
+  await new Promise(resolve => setTimeout(resolve, 3000));
+  }
+
   await init_remote.execute_script((url, rule_extras) => {
       const a = document.createElement('a');
       a.href = url;
@@ -266,10 +280,16 @@ async function create_prerendered_page(t, opt = {}, init_opt = {}, rule_extras =
       throw new Error('Should not be prerendering at this point')
   }
 
+  // Get the number of network requests for the prerendered page URL.
+  async function getNetworkRequestCount() {
+    return await (await fetch(url + '&get-fetch-count')).text();
+  }
+
   return {
     exec: (fn, args) => prerender_remote.execute_script(fn, args),
     activate,
-    tryToActivate
+    tryToActivate,
+    getNetworkRequestCount
   };
 }
 
